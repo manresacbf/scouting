@@ -150,13 +150,15 @@ function config(clau, defecte) {
    escriptures són idempotents (upsert per id), així que reintentar-les
    no pot duplicar res.                                                  */
 
-const ESPERES = [1200, 3000];
-const TEMPS_MAX = 15000;
+const ESPERES = [1000, 2500, 5000, 8000];
+const TEMPS_MAX = 25000;     // Apps Script pot trigar 10 s o mes a despertar-se
+const LIMIT_TOTAL = 60000;   // sostre: ningu s'espera mes que aixo mirant la pantalla
 
 async function api(action, extra, intents) {
   if (!CONFIG.API_URL) throw new Error('Falta configurar API_URL');
   intents = intents || 2;
   const cos = Object.assign({ action: action, pin: sessio.pin }, extra || {});
+  const INICI = Date.now();
   let ultim;
 
   for (let i = 0; i < intents; i++) {
@@ -180,7 +182,9 @@ async function api(action, extra, intents) {
     } catch (err) {
       ultim = err;
       if (String(err && err.message) === 'PIN') throw err;
-      if (i < intents - 1) await new Promise((r) => setTimeout(r, ESPERES[Math.min(i, ESPERES.length - 1)]));
+      // Prou de reintentar si ja hem cremat el pressupost de temps.
+      if (i >= intents - 1 || Date.now() - INICI > LIMIT_TOTAL) break;
+      await new Promise((r) => setTimeout(r, ESPERES[Math.min(i, ESPERES.length - 1)]));
     } finally {
       clearTimeout(rellotge);
     }
@@ -373,7 +377,7 @@ async function entraAmbPin(ev) {
   sessio.pin = pin;
 
   try {
-    const res = await api('bootstrap', {}, 2);
+    const res = await api('bootstrap', {}, 5);
     if (!res || !res.ok) throw new Error((res && res.error) || 'Error');
     refrescaLocal(res.data);
 
@@ -392,7 +396,8 @@ async function entraAmbPin(ev) {
     sessio.pin = '';
     if (String(e && e.message) === 'PIN') err.textContent = 'PIN incorrecte.';
     else if (!navigator.onLine) err.textContent = 'Cal cobertura per entrar el primer cop.';
-    else err.textContent = 'No s\'ha pogut comprovar el PIN. Torna-ho a provar.';
+    else err.textContent = 'El full de Google no ha contestat (' +
+      String(e && e.message ? e.message : e) + '). Ho fa de tant en tant: torna a premer Entrar.';
   } finally {
     boto.disabled = false;
     boto.textContent = sessio.pin ? 'Continuar' : 'Entrar';
@@ -599,32 +604,48 @@ function encaixGlobal(pc) {
 }
 
 function pintaMatriu(ultima) {
+  const cap = '<div class="eyebrow">Matriu de decisió</div>' +
+    '<p class="meta" style="margin:0 0 10px">' +
+    "Es calcula sola a partir de l'última observació: no es tria a mà." + '</p>';
+
   if (!ultima) {
-    return '<div class="card"><div class="eyebrow">Matriu de decisió</div>' +
+    return '<div class="card">' + cap +
       '<p class="meta" style="margin:0">Encara no hi ha cap observació.</p></div>';
   }
+
+  const pc = ultima.perfil_conducta || {};
   const sostre = mitjana(ultima.val_sostre);
-  const encaix = encaixGlobal(ultima.perfil_conducta);
+  const encaix = encaixGlobal(pc);
+  // Sense cap dada d'encaix no la situem enlloc: comptar el buit com a "Baix"
+  // seria inventar un veredicte a partir d'un bloc que ningu ha omplert.
+  const hiHaEncaix = !!(pc.encaix_entorn || pc.encaix_grup);
+  const situable = sostre !== null && hiHaEncaix;
   const sostreAlt = sostre !== null && sostre >= 3.5;
   const encaixAlt = encaix >= 2;
-  const actiu = sostreAlt
+  const actiu = !situable ? '' : (sostreAlt
     ? (encaixAlt ? 'objectiu' : 'risc')
-    : (encaixAlt ? 'plantilla' : 'descartar');
+    : (encaixAlt ? 'plantilla' : 'descartar'));
 
   const q = (clau, etiqueta, eixos) =>
     '<div class="quadrant' + (actiu === clau ? ' actiu' : '') + '">' + etiqueta +
     '<span class="eixos">' + eixos + '</span></div>';
 
-  return '<div class="card">' +
-    '<div class="eyebrow">Matriu de decisió</div>' +
+  const falta = [];
+  if (sostre === null) falta.push('valorar el sostre de les àrees');
+  if (!hiHaEncaix) falta.push("dir l'encaix amb l'entorn i amb el grup");
+
+  return '<div class="card">' + cap +
     '<div class="matriu">' +
       q('risc', 'Fitxatge de risc', 'sostre alt · encaix baix') +
       q('objectiu', 'Objectiu prioritari', 'sostre alt · encaix alt') +
       q('descartar', 'Descartar', 'sostre baix · encaix baix') +
       q('plantilla', 'Completa plantilla', 'sostre baix · encaix alt') +
     '</div>' +
-    '<p class="llegenda-matriu">Sostre ' + unDecimal(sostre) + '/5 · encaix ' + encaix + '/4 ' +
-    '(última observació, ' + esc(formatData(ultima.data)) + ').</p>' +
+    '<p class="llegenda-matriu">' + (situable
+      ? 'Sostre ' + unDecimal(sostre) + '/5 · encaix ' + encaix + '/4 (última observació, ' +
+        esc(formatData(ultima.data)) + ').'
+      : "Encara no es pot situar: a l'última observació falta " + falta.join(' i ') + '.') +
+    '</p>' +
   '</div>';
 }
 
@@ -962,7 +983,6 @@ function pintaFormObservacio(idJugadora) {
 
       '<div class="card">' +
         '<div class="eyebrow">Perfil de conducta i encaix</div>' +
-        '<p class="nota">Anota el que has vist, no el que suposes. Res sobre aspecte físic, entorn familiar ni caràcter personal.</p>' +
         '<div class="camp"><label>Conductes observades (les que hagis vist)</label>' +
           '<div class="multi" id="o-conductes">' +
             CONDUCTES.map((c) => '<button type="button" class="chip" data-valor="' + esc(c) + '" aria-pressed="false">' + esc(c) + '</button>').join('') +
