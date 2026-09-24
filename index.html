@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scouting MCBF</title>
+<meta name="theme-color" content="#11141a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scouting">
+<style>
+  :root{
+    /* Mateixa paleta que manresa-hub */
+    --bg:#11141a;
+    --bg-raised:#181c24;
+    --bg-alt:#1e2330;
+    --line:#2a2f3a;
+    --pink:#ff2d78;
+    --pink-dim:#c21f5c;
+    --text:#f2f1ee;
+    --text-dim:#8b93a3;
+    /* Propis d'aquesta app */
+    --prio-a:#ff2d78;
+    --prio-b:#f5a524;
+    --prio-c:#6b7280;
+    --ok:#33c06f;
+    --avis:#f5a524;
+    --toc:44px;                 /* àrea tàctil mínima */
+    /* Tipografia del sistema: aquesta app no carrega res de cap CDN perquè
+       ha de funcionar dins pavellons sense cobertura. */
+    --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text);}
+  body{
+    font-family:var(--font);
+    font-size:16px;
+    line-height:1.4;
+    min-height:100vh;
+    min-height:100dvh;
+  }
+  button,input,select,textarea{font-family:inherit; font-size:16px; color:inherit;}
+  .amagat{display:none !important;}
+
+  /* ---------- Capçalera ---------- */
+  .barra{
+    position:sticky; top:0; z-index:20;
+    background:rgba(17,20,26,.94);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+    padding: max(10px, env(safe-area-inset-top)) 14px 10px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .barra h1{
+    font-size:17px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; margin:0; flex:1; min-width:0;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .btn-icona{
+    flex:0 0 auto;
+    min-width:var(--toc); min-height:var(--toc);
+    display:flex; align-items:center; justify-content:center;
+    background:transparent; border:1px solid var(--line);
+    border-radius:12px; color:var(--text);
+  }
+  .btn-icona:active{background:var(--bg-alt);}
+  .sync{
+    flex:0 0 auto;
+    min-height:36px; padding:0 12px;
+    display:flex; align-items:center; gap:7px;
+    background:var(--bg-raised); border:1px solid var(--line);
+    border-radius:999px;
+    font-size:13px; color:var(--text-dim);
+  }
+  .sync .punt{width:8px; height:8px; border-radius:50%; background:var(--ok); flex:0 0 auto;}
+  .sync.pendent{color:var(--avis); border-color:rgba(245,165,36,.4);}
+  .sync.pendent .punt{background:var(--avis);}
+  .sync.treballant .punt{animation:batec 1s infinite;}
+  @keyframes batec{50%{opacity:.25;}}
+
+  main{
+    padding:16px 14px calc(96px + env(safe-area-inset-bottom));
+    max-width:560px; margin:0 auto;
+  }
+
+  /* ---------- Blocs comuns ---------- */
+  .card{
+    background:var(--bg-raised);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px;
+    margin-bottom:12px;
+  }
+  .eyebrow{
+    font-size:12px; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--pink); font-weight:700; margin-bottom:8px;
+  }
+  .nota{
+    font-size:14px; color:var(--text-dim);
+    background:rgba(255,45,120,.07);
+    border-left:3px solid var(--pink-dim);
+    border-radius:8px; padding:10px 12px; margin-bottom:14px;
+  }
+  .buit{text-align:center; color:var(--text-dim); padding:30px 10px;}
+
+  .camp{margin-bottom:12px;}
+  .camp label{display:block; font-size:13px; color:var(--text-dim); margin-bottom:5px;}
+  .camp input,.camp select,.camp textarea{
+    width:100%; min-height:var(--toc);
+    background:var(--bg); border:1px solid var(--line);
+    border-radius:10px; padding:10px 12px;
+  }
+  .camp textarea{min-height:88px; resize:vertical;}
+  .camp input:focus,.camp select:focus,.camp textarea:focus{outline:2px solid var(--pink-dim); outline-offset:0;}
+  .parell{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+
+  .btn{
+    width:100%; min-height:52px;
+    background:var(--pink); border:none; border-radius:12px;
+    color:#fff; font-weight:700; font-size:17px;
+    letter-spacing:.02em;
+  }
+  .btn:active{background:var(--pink-dim);}
+  .btn.secundari{background:var(--bg-alt); border:1px solid var(--line); color:var(--text);}
+  .btn[disabled]{opacity:.5;}
+
+  /* ---------- Xips de filtre ---------- */
+  .filtres{margin-bottom:12px;}
+  .filtres .fila{
+    display:flex; gap:6px; overflow-x:auto; padding:3px 0 6px;
+    scrollbar-width:none;
+  }
+  .filtres .fila::-webkit-scrollbar{display:none;}
+  .filtres .etiqueta{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-dim);}
+  .chip{
+    flex:0 0 auto; min-height:38px; padding:0 14px;
+    background:var(--bg-raised); border:1px solid var(--line);
+    border-radius:999px; color:var(--text-dim); font-size:14px;
+    white-space:nowrap;
+  }
+  .chip[aria-pressed="true"]{background:var(--pink); border-color:var(--pink); color:#fff; font-weight:600;}
+
+  .cerca{position:relative; margin-bottom:10px;}
+  .cerca input{
+    width:100%; min-height:var(--toc);
+    background:var(--bg-raised); border:1px solid var(--line);
+    border-radius:12px; padding:10px 14px;
+  }
+
+  /* ---------- Llistat ---------- */
+  .compta{font-size:13px; color:var(--text-dim); margin:2px 0 10px;}
+  .fila-jug{
+    display:flex; align-items:center; gap:12px;
+    width:100%; text-align:left;
+    background:var(--bg-raised); border:1px solid var(--line);
+    border-radius:14px; padding:13px 14px; margin-bottom:9px;
+  }
+  .fila-jug:active{background:var(--bg-alt);}
+  .fila-jug .punt-prio{
+    flex:0 0 auto; width:11px; height:11px; border-radius:50%;
+    background:var(--prio-c);
+  }
+  .punt-prio.A{background:var(--prio-a);}
+  .punt-prio.B{background:var(--prio-b);}
+  .punt-prio.C{background:var(--prio-c);}
+  .punt-prio.cap{background:transparent; border:1.5px solid var(--line);}
+  .fila-jug .cos{flex:1; min-width:0;}
+  .fila-jug .nom,.fila-jug .sub{display:block;}
+  .fila-jug .nom{
+    font-size:19px; font-weight:700; letter-spacing:.01em;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .fila-jug .sub{font-size:14px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .fila-jug .fletxa{flex:0 0 auto; color:var(--text-dim);}
+
+  .fab{
+    position:fixed; z-index:30;
+    left:14px; right:14px; bottom:calc(14px + env(safe-area-inset-bottom));
+    max-width:532px; margin:0 auto;
+    min-height:54px;
+    background:var(--pink); border:none; border-radius:14px;
+    color:#fff; font-weight:700; font-size:17px;
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+  }
+  .fab:active{background:var(--pink-dim);}
+
+  /* ---------- Fitxa ---------- */
+  .capcalera-fitxa{margin-bottom:14px;}
+  .capcalera-fitxa .nom{font-size:27px; font-weight:800; line-height:1.15; margin-bottom:8px;}
+  .destacats{display:flex; gap:8px; flex-wrap:wrap;}
+  .destacat{
+    background:var(--bg-raised); border:1px solid var(--line);
+    border-radius:12px; padding:8px 12px;
+  }
+  .destacat .k{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-dim);}
+  .destacat .v{font-size:19px; font-weight:700;}
+  .meta{font-size:14px; color:var(--text-dim); margin-top:8px;}
+
+  details.bloc{
+    background:var(--bg-raised); border:1px solid var(--line);
+    border-radius:14px; margin-bottom:12px; overflow:hidden;
+  }
+  details.bloc > summary{
+    list-style:none; cursor:pointer;
+    min-height:52px; padding:14px;
+    display:flex; align-items:center; gap:10px;
+    font-weight:700; letter-spacing:.03em; text-transform:uppercase; font-size:14px;
+  }
+  details.bloc > summary::-webkit-details-marker{display:none;}
+  details.bloc > summary::after{content:"▾"; margin-left:auto; color:var(--text-dim); font-size:16px;}
+  details.bloc[open] > summary::after{content:"▴";}
+  details.bloc > summary .compta-bloc{
+    margin-left:auto; color:var(--text-dim); font-weight:500;
+    text-transform:none; letter-spacing:0; font-size:13px;
+  }
+  details.bloc > summary .compta-bloc + *{margin-left:0;}
+  .bloc-cos{padding:0 14px 14px; border-top:1px solid var(--line); padding-top:14px;}
+
+  /* ---------- Matriu de decisió ---------- */
+  .matriu{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;}
+  .quadrant{
+    border:1px solid var(--line); border-radius:12px;
+    padding:11px 12px; min-height:74px;
+    background:var(--bg); color:var(--text-dim);
+    font-size:13.5px; font-weight:600;
+  }
+  .quadrant .eixos{display:block; font-size:11px; font-weight:500; color:var(--text-dim); margin-top:4px;}
+  .quadrant.actiu{
+    background:rgba(255,45,120,.14); border-color:var(--pink);
+    color:var(--text); font-weight:800;
+  }
+  .llegenda-matriu{font-size:13px; color:var(--text-dim); margin-top:10px;}
+
+  /* ---------- Observacions ---------- */
+  .obs{
+    background:var(--bg); border:1px solid var(--line);
+    border-radius:12px; margin-bottom:9px; overflow:hidden;
+  }
+  .obs > summary{
+    list-style:none; cursor:pointer; padding:12px; min-height:var(--toc);
+  }
+  .obs > summary::-webkit-details-marker{display:none;}
+  .obs .data{font-weight:700;}
+  .obs .qui{font-size:14px; color:var(--text-dim);}
+  .obs .mitjanes{display:flex; gap:8px; margin-top:7px;}
+  .pastilla{
+    font-size:13px; padding:3px 9px; border-radius:999px;
+    background:var(--bg-alt); border:1px solid var(--line); color:var(--text-dim);
+  }
+  .pastilla b{color:var(--text);}
+  .obs-detall{padding:0 12px 12px;}
+  .obs-detall h4{
+    font-size:12px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--text-dim); margin:14px 0 6px;
+  }
+  .kv{display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-bottom:1px solid var(--line); font-size:15px;}
+  .kv:last-child{border-bottom:none;}
+  .kv .k{color:var(--text-dim);}
+  .kv .v{text-align:right; font-weight:600;}
+
+  /* ---------- Comparativa ---------- */
+  .taula{width:100%; border-collapse:collapse; font-size:14px;}
+  .taula th,.taula td{padding:8px 6px; border-bottom:1px solid var(--line); text-align:center;}
+  .taula th:first-child,.taula td:first-child{text-align:left;}
+  .taula thead th{
+    font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim);
+    font-weight:600;
+  }
+  .taula td .val{font-weight:700; font-size:16px;}
+  .taula tr.discrepa{background:rgba(245,165,36,.1);}
+  .taula tr.discrepa td:first-child::after{content:" ⚠"; color:var(--avis);}
+  .commutador{display:flex; gap:6px; margin-bottom:10px;}
+
+  /* ---------- Formulari d'observació ---------- */
+  .area{padding:12px 0; border-bottom:1px solid var(--line);}
+  .area:last-child{border-bottom:none;}
+  .area .titol{font-weight:700; font-size:16px; margin-bottom:8px;}
+  .escala{display:flex; align-items:center; gap:7px; margin-bottom:7px;}
+  .escala .quin{
+    flex:0 0 52px; font-size:12px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--text-dim);
+  }
+  .escala .botons{display:flex; gap:6px; flex:1;}
+  .nota-val{
+    flex:1; min-height:var(--toc);
+    background:var(--bg); border:1px solid var(--line);
+    border-radius:10px; color:var(--text-dim); font-size:17px; font-weight:700;
+  }
+  .nota-val[aria-pressed="true"]{background:var(--pink); border-color:var(--pink); color:#fff;}
+  .escala.sostre .nota-val[aria-pressed="true"]{background:var(--pink-dim); border-color:var(--pink-dim);}
+
+  details.ajuda{margin-bottom:12px;}
+  details.ajuda > summary{
+    list-style:none; min-height:var(--toc); display:flex; align-items:center;
+    color:var(--pink); font-size:14px; font-weight:600;
+  }
+  details.ajuda > summary::-webkit-details-marker{display:none;}
+  details.ajuda .cos{font-size:14px; color:var(--text-dim);}
+  details.ajuda .cos b{color:var(--text);}
+
+  .multi{display:flex; flex-wrap:wrap; gap:7px;}
+  .multi .chip{flex:0 1 auto;}
+
+  /* ---------- PIN ---------- */
+  #vista-pin{
+    min-height:100dvh; display:flex; flex-direction:column; justify-content:center;
+    padding:24px 20px calc(24px + env(safe-area-inset-bottom));
+    max-width:420px; margin:0 auto;
+  }
+  #vista-pin .logo{width:84px; height:84px; border-radius:20px; margin:0 auto 18px; display:block;}
+  #vista-pin h2{font-size:25px; font-weight:800; text-align:center; margin:0 0 4px; text-transform:uppercase; letter-spacing:.03em;}
+  #vista-pin p.sub{text-align:center; color:var(--text-dim); margin:0 0 26px; font-size:14px;}
+  .pin-camp{
+    width:100%; min-height:62px; text-align:center;
+    font-size:30px; letter-spacing:.5em; font-weight:700;
+    background:var(--bg-raised); border:1px solid var(--line);
+    border-radius:14px; margin-bottom:12px;
+  }
+  .error{color:var(--pink); font-size:14px; text-align:center; min-height:20px; margin:8px 0;}
+
+  /* ---------- Avisos ---------- */
+  #toast{
+    position:fixed; z-index:50;
+    left:14px; right:14px; bottom:calc(80px + env(safe-area-inset-bottom));
+    max-width:532px; margin:0 auto;
+    background:var(--bg-alt); border:1px solid var(--line);
+    border-left:3px solid var(--ok);
+    border-radius:12px; padding:13px 14px;
+    font-size:15px;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);
+    transition:opacity .2s ease, transform .2s ease;
+  }
+  #toast.ko{border-left-color:var(--pink);}
+  #toast.fora{opacity:0; transform:translateY(8px); pointer-events:none;}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     Pantalla d'entrada (PIN + responsable)
+     ══════════════════════════════════════════════════════════════════ -->
+<section id="vista-pin">
+  <img src="icon-192.png" alt="" class="logo">
+  <h2>Scouting MCBF</h2>
+  <p class="sub">Direcció Esportiva · ús intern</p>
+
+  <form id="form-pin" autocomplete="off">
+    <input id="pin" class="pin-camp" type="password" inputmode="numeric"
+           pattern="[0-9]*" maxlength="6" placeholder="····" aria-label="PIN">
+    <div class="camp">
+      <label for="responsable">Qui ets</label>
+      <select id="responsable">
+        <option value="">Selecciona el responsable…</option>
+      </select>
+    </div>
+    <p class="error" id="pin-error"></p>
+    <button class="btn" type="submit" id="pin-entra">Entrar</button>
+  </form>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     App
+     ══════════════════════════════════════════════════════════════════ -->
+<div id="vista-app" class="amagat">
+  <div class="barra">
+    <button class="btn-icona amagat" id="enrere" aria-label="Enrere">←</button>
+    <h1 id="titol">Jugadores</h1>
+    <button class="sync" id="estat-sync" aria-live="polite">
+      <span class="punt"></span><span id="estat-sync-text">Sincronitzat</span>
+    </button>
+  </div>
+  <main id="contingut"></main>
+  <button class="fab amagat" id="fab">+ Nova jugadora</button>
+</div>
+
+<div id="toast" class="amagat"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   CONFIGURACIÓ
+   ═══════════════════════════════════════════════════════════════════
+   Enganxa aquí la URL acabada en /exec que et dona Google quan desplegues
+   l'Apps Script com a "Aplicació web". És l'únic que cal tocar per posar
+   l'app en marxa. Tens els passos al README.                           */
+const CONFIG = {
+  API_URL: "https://script.google.com/macros/s/AKfycbwCr3FvEjjzxxngoAf9L3n152U-QDNfPd7Vm1QtQIVcY2pXEVJS97JeM2QgfWU54ByzTg/exec"
+};
+</script>
+<script src="app.js"></script>
+</body>
+</html>
