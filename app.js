@@ -695,9 +695,9 @@ function detallObservacio(o) {
   const conductes = (pc.conductes || []);
   return '<div class="obs-detall">' +
     '<h4>Context</h4>' +
-    '<div class="kv"><span class="k">Competició</span><span class="v">' + esc(o.competicio || '—') + '</span></div>' +
-    '<div class="kv"><span class="k">Rival</span><span class="v">' + esc(o.rival || '—') + '</span></div>' +
-    '<div class="kv"><span class="k">Minuts vistos</span><span class="v">' + esc(o.minuts_vistos || '—') + '</span></div>' +
+    (o.competicio ? '<div class="kv"><span class="k">Competició</span><span class="v">' + esc(o.competicio) + '</span></div>' : '') +
+    (o.rival ? '<div class="kv"><span class="k">Rival</span><span class="v">' + esc(o.rival) + '</span></div>' : '') +
+    (o.minuts_vistos ? '<div class="kv"><span class="k">Minuts vistos</span><span class="v">' + esc(o.minuts_vistos) + '</span></div>' : '') +
     '<div class="kv"><span class="k">Rol a l\'equip</span><span class="v">' + esc(o.rol_equip || '—') + '</span></div>' +
     '<h4>Valoració (ara → sostre)</h4>' + (AREES.map(val).join('') || '<p class="meta">Sense valoracions.</p>') +
     '<h4>Conducta observada</h4>' +
@@ -862,6 +862,15 @@ function semblants(nom, any) {
   });
 }
 
+/** Els anys que es poden triar: de la mes petita d'un mini a una senior
+    feta. Es calcula cada cop, aixi no cal tocar res al comencar la temporada. */
+function anysNaixement() {
+  const ara = new Date().getFullYear();
+  const anys = [];
+  for (let a = ara - 5; a >= ara - 26; a--) anys.push(String(a));
+  return anys;
+}
+
 function pintaFormJugadora() {
   $('#titol').textContent = 'Nova jugadora';
   const opcions = (llista, buit) => '<option value="">' + buit + '</option>' +
@@ -870,11 +879,8 @@ function pintaFormJugadora() {
   $('#contingut').innerHTML =
     '<form id="form-jug" autocomplete="off">' +
       '<div class="camp"><label for="j-nom">Nom i cognoms *</label><input id="j-nom" required></div>' +
-      '<div class="parell">' +
-        '<div class="camp"><label for="j-any">Any de naixement *</label>' +
-          '<input id="j-any" type="number" inputmode="numeric" min="1990" max="2030" required></div>' +
-        '<div class="camp"><label for="j-dorsal">Dorsal</label><input id="j-dorsal" inputmode="numeric"></div>' +
-      '</div>' +
+      '<div class="camp"><label for="j-any">Any de naixement *</label>' +
+        '<select id="j-any" required>' + opcions(anysNaixement(), 'Tria l\'any') + '</select></div>' +
       '<div class="camp"><label for="j-club">Club</label><input id="j-club"></div>' +
       '<div class="camp"><label for="j-equip">Equip dins el club</label><input id="j-equip"></div>' +
       '<div class="parell">' +
@@ -899,7 +905,6 @@ function pintaFormJugadora() {
     categoria: $('#j-categoria').value,
     posicio: $('#j-posicio').value,
     alcada: $('#j-alcada').value.trim(),
-    dorsal: $('#j-dorsal').value.trim(),
     creada_per: sessio.responsable,
     data_creacio: new Date().toISOString()
   });
@@ -962,13 +967,7 @@ function pintaFormObservacio(idJugadora) {
     '<form id="form-obs" autocomplete="off">' +
       '<div class="card">' +
         '<div class="eyebrow">Context</div>' +
-        '<div class="camp"><label for="o-competicio">Competició</label><input id="o-competicio"></div>' +
-        '<div class="camp"><label for="o-rival">Rival</label><input id="o-rival"></div>' +
-        '<div class="parell">' +
-          '<div class="camp"><label for="o-minuts">Minuts vistos</label>' +
-            '<input id="o-minuts" type="number" inputmode="numeric" min="0" max="60"></div>' +
-          '<div class="camp"><label for="o-rol">Rol a l\'equip</label><input id="o-rol" placeholder="1a base"></div>' +
-        '</div>' +
+        '<div class="camp"><label for="o-rol">Rol a l\'equip</label><input id="o-rol" placeholder="1a base"></div>' +
       '</div>' +
 
       '<div class="card">' +
@@ -1058,9 +1057,6 @@ function pintaFormObservacio(idJugadora) {
       id_jugadora: idJugadora,
       data: new Date().toISOString(),
       responsable: sessio.responsable,
-      competicio: $('#o-competicio').value.trim(),
-      rival: $('#o-rival').value.trim(),
-      minuts_vistos: $('#o-minuts').value.trim(),
       rol_equip: $('#o-rol').value.trim(),
       val_ara: ara,
       val_sostre: sostre,
