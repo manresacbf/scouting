@@ -963,8 +963,8 @@ function pintaLlistaSenior() {
 
   $('#contingut').innerHTML =
     '<p class="meta" style="margin:0 0 14px">' +
-      "La teva llista per a l'any vinent. Només la veus tu, i tornar a desar una " +
-      'jugadora reescriu la seva fitxa.' +
+      "La teva llista per a l'any vinent. Només la veus tu, i si entres a alguna " +
+      'fitxa la pots editar.' +
     '</p>' +
     (llista.length
       ? llista.map((j) =>
@@ -1018,15 +1018,7 @@ function pintaFormSenior(id) {
       '</div>' +
 
       '<div class="card">' +
-        '<div class="eyebrow">Com juga</div>' +
-        '<div class="camp"><label>Punts forts</label>' +
-          xips('s-forts', punts, (j && j.punts_forts) || []) + '</div>' +
-        '<div class="camp" style="margin-bottom:0"><label>A millorar</label>' +
-          xips('s-millorar', punts, (j && j.a_millorar) || []) + '</div>' +
-      '</div>' +
-
-      '<div class="card">' +
-        '<div class="eyebrow">Què en fem</div>' +
+        '<div class="eyebrow">Visió general</div>' +
         '<div class="camp"><label>Nivell que li veus</label>' +
           xips('s-nivell', nivells, j && j.nivell ? [j.nivell] : [], true) + '</div>' +
         '<div class="camp"><label>Interès</label>' +
@@ -1034,6 +1026,14 @@ function pintaFormSenior(id) {
         '<div class="camp" style="margin-bottom:0"><label for="s-notes">Notes</label>' +
           '<textarea id="s-notes" placeholder="Acaba contracte, estudia fora, ja hi han parlat…">' +
             esc(j ? j.notes : '') + '</textarea></div>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="eyebrow">Com juga</div>' +
+        '<div class="camp"><label>Punts forts</label>' +
+          xips('s-forts', punts, (j && j.punts_forts) || []) + '</div>' +
+        '<div class="camp" style="margin-bottom:0"><label>A millorar</label>' +
+          xips('s-millorar', punts, (j && j.a_millorar) || []) + '</div>' +
       '</div>' +
 
       '<button type="submit" class="btn" id="s-desa">' + (j ? 'Desar els canvis' : 'Desar') + '</button>' +
