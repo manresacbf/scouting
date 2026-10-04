@@ -394,6 +394,14 @@ async function entraAmbPin(ev) {
     if (!res || !res.ok) throw new Error((res && res.error) || 'Error');
     refrescaLocal(res.data);
 
+    // El codi de direcció esportiva ja diu qui és: no té sentit demanar-l'hi.
+    if (esDirector()) {
+      sessio.responsable = RESPONSABLE_DIRECTOR;
+      guarda(CLAUS.sessio, sessio);
+      obreApp();
+      return;
+    }
+
     const responsables = config('responsables', []);
     if (!resp || responsables.indexOf(resp) === -1) {
       // PIN correcte però encara no sabem qui és: segon pas, ja amb la
@@ -523,14 +531,15 @@ function pintaLlista() {
       '<p class="compta" id="compta"></p>' +
       '<div id="llista-cos"></div>' +
       '<div class="meta" style="text-align:center;margin-top:18px">' +
-        'Sessió: <b>' + esc(sessio.responsable) + '</b> · ' +
-        '<button type="button" class="chip" id="canvia-resp" style="min-height:32px">Canviar</button>' +
+        'Sessió: <b>' + esc(sessio.responsable) + '</b>' +
+        (esDirector() ? ''
+          : ' · <button type="button" class="chip" id="canvia-resp" style="min-height:32px">Canviar</button>') +
       '</div>';
 
 
     const cerca = $('#cerca');
     cerca.addEventListener('input', () => { filtres.text = cerca.value; pintaCosLlista(); });
-    $('#canvia-resp').addEventListener('click', () => {
+    if ($('#canvia-resp')) $('#canvia-resp').addEventListener('click', () => {
       sessio.responsable = '';
       guarda(CLAUS.sessio, sessio);
       mostraPin('Tria qui ets.');
@@ -912,6 +921,10 @@ const SENIOR_PUNTS_DEF = ['Tir exterior', 'Penetració', 'Rebot', 'Defensa inter
   'Intensitat', 'Lideratge'];
 const SENIOR_NIVELL_DEF = ['Completaria plantilla', 'Competiria pel lloc', 'Titular'];
 const SENIOR_INTERES_DEF = ['Seguir-la mirant', 'Parlar-hi aquesta temporada', 'Prioritat'];
+
+/* Amb qui signa les observacions el director. No li preguntem el nom perquè
+   el seu codi només el té ell: preguntar-l'hi seria un pas per no res. */
+const RESPONSABLE_DIRECTOR = 'Direcció esportiva';
 
 function esDirector() { return D.rol === 'director'; }
 

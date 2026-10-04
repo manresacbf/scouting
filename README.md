@@ -83,6 +83,11 @@ del full, sense tocar codi. L'app les rellegeix cada cop que arrenca.
 Mentre `pin_director` estigui buit no l'obre ningú, i qui entri amb el `pin` de
 sempre no nota cap diferència.
 
+**Amb el `pin_director` no es demana qui ets**: aquell codi només el té una
+persona, així que l'app entra directament i signa les observacions com a
+*Direcció esportiva*. Amb el `pin` compartit sí que cal triar el nom de la
+llista de `responsables`, perquè allà el codi no diu qui l'està fent servir.
+
 ## Les jugadores sènior
 
 La llista del director tècnic per a la temporada següent: majors de 18 anys que
