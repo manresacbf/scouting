@@ -6,7 +6,7 @@
  * 1) Crea un Google Sheet nou i anomena'l  Scouting MCBF.
  * 2) Extensions -> Apps Script. Esborra el que hi hagi i enganxa aquest
  *    fitxer sencer. Desa.
- * 3) A dalt, tria la funcio "setup" i clica ▶ Executar. Aixo crea les 4
+ * 3) A dalt, tria la funcio "setup" i clica ▶ Executar. Aixo crea les 5
  *    pestanyes amb les capçaleres correctes i la configuracio inicial.
  *    (La primera vegada Google demanara permisos: accepta-ho.)
  * 4) Ves a la pestanya Config i canvia el PIN: ve amb 1234 de fabrica.
@@ -55,6 +55,15 @@ var FULLS = {
                 'data_propera_accio', 'actualitzat_per', 'data_actualitzacio'],
     text: ['id_jugadora', 'data_propera_accio', 'data_actualitzacio']
   },
+  senior: {
+    nom: 'Senior',
+    clau: 'id',
+    // Una fila per jugadora: tornar-la a veure reescriu la fila, no n'afegeix
+    // una de nova. Per a senior interessa la decisio d'ara, no l'historial.
+    capcalera: ['id', 'nom', 'equip', 'any_naixement', 'posicio', 'punts_forts',
+                'a_millorar', 'nivell', 'interes', 'notes', 'actualitzada'],
+    text: ['id', 'actualitzada']
+  },
   config: {
     nom: 'Config',
     clau: 'clau',
@@ -65,9 +74,17 @@ var FULLS = {
 
 var CONFIG_INICIAL = [
   ['pin', '1234'],
+  // Qui entri amb aquest codi veu tot el que veu la resta MES la pestanya
+  // Senior. Mentre estigui buit, no el veu ningu.
+  ['pin_director', ''],
   ['responsables', 'Agustí, Responsable 2, Responsable 3'],
   ['categories', 'Mini, Preinfantil, Infantil, Cadet, Júnior, Sènior'],
-  ['posicions', 'Base, Escorta, Aler, Ala-pivot, Pivot']
+  ['posicions', 'Base, Escorta, Aler, Ala-pivot, Pivot'],
+  ['senior_punts', 'Tir exterior, Penetració, Rebot, Defensa interior, ' +
+    'Defensa exterior, Bot i maneig, Joc d\'esquena, Lectura de joc, Físic, ' +
+    'Intensitat, Lideratge'],
+  ['senior_nivell', 'Completaria plantilla, Competiria pel lloc, Titular'],
+  ['senior_interes', 'Seguir-la mirant, Parlar-hi aquesta temporada, Prioritat']
 ];
 
 /* Frena la força bruta contra el PIN: 8 errades en 5 minuts i es tanca
@@ -111,7 +128,7 @@ function setup() {
     conf.getRange(conf.getLastRow() + 1, 1, afegir.length, 2).setValues(afegir);
   }
 
-  ss.toast('Pestanyes preparades. Ara canvia el PIN a la pestanya Config.', 'Scouting MCBF', 8);
+  ss.toast('Pestanyes preparades. Ara posa el PIN i el pin_director a Config.', 'Scouting MCBF', 8);
 }
 
 /* ------------------------------------------------------------------ *
@@ -232,14 +249,25 @@ function validaPin_(pin) {
     return { ok: false, error: 'Massa intents. Torna-ho a provar en uns minuts.' };
   }
 
-  var esperat = text_(configuracio_().pin);
-  if (!esperat) return { ok: false, error: 'No hi ha cap PIN a la pestanya Config.' };
+  var conf = configuracio_();
+  var esperat = text_(conf.pin);
+  var director = text_(conf.pin_director);
+  if (!esperat && !director) {
+    return { ok: false, error: 'No hi ha cap PIN a la pestanya Config.' };
+  }
 
-  if (text_(pin) === esperat) {
+  // Un codi buit a Config no ha d'obrir res: per aixo es comprova que hi
+  // sigui abans de comparar-lo.
+  var escrit = text_(pin);
+  var rol = '';
+  if (director && escrit === director) rol = 'director';
+  else if (esperat && escrit === esperat) rol = 'observador';
+
+  if (rol) {
     props.deleteProperty('errades');
     props.deleteProperty('errades_des_de');
     props.deleteProperty('bloqueig_fins');
-    return { ok: true };
+    return { ok: true, rol: rol };
   }
 
   // Comptem errades dins d'una finestra de temps.
@@ -295,6 +323,28 @@ function captacio_() {
     });
 }
 
+/* Els punts forts i el que ha de millorar es desen com a text separat per
+   comes i no com a JSON: aquesta pestanya l'ha de poder llegir una persona. */
+function senior_() {
+  return files_('senior')
+    .filter(function (f) { return text_(f.id); })
+    .map(function (f) {
+      return {
+        id: text_(f.id),
+        nom: text_(f.nom),
+        equip: text_(f.equip),
+        any_naixement: num_(f.any_naixement),
+        posicio: text_(f.posicio),
+        punts_forts: llista_(f.punts_forts),
+        a_millorar: llista_(f.a_millorar),
+        nivell: text_(f.nivell),
+        interes: text_(f.interes),
+        notes: text_(f.notes),
+        actualitzada: text_(f.actualitzada)
+      };
+    });
+}
+
 function observacions_(idJugadora) {
   return files_('observacions')
     .filter(function (f) {
@@ -322,7 +372,7 @@ function observacions_(idJugadora) {
  *  Accions                                                            *
  * ------------------------------------------------------------------ */
 
-function bootstrap_() {
+function bootstrap_(rol) {
   var conf = configuracio_();
   return json_({
     ok: true,
@@ -331,8 +381,14 @@ function bootstrap_() {
       config: {
         responsables: llista_(conf.responsables),
         categories: llista_(conf.categories),
-        posicions: llista_(conf.posicions)
+        posicions: llista_(conf.posicions),
+        senior_punts: llista_(conf.senior_punts),
+        senior_nivell: llista_(conf.senior_nivell),
+        senior_interes: llista_(conf.senior_interes)
       },
+      rol: rol,
+      // La llista senior no surt del full si qui pregunta no es el director.
+      senior: rol === 'director' ? senior_() : [],
       jugadores: jugadores_(),
       captacio: captacio_(),
       ts: ara_()
@@ -405,13 +461,42 @@ function saveCaptacio_(p) {
   return json_({ ok: true, data: { id_jugadora: text_(p.id_jugadora) } });
 }
 
+/**
+ * Una fila per jugadora: tornar-la a desar reescriu la que hi havia. Nomes
+ * la direccio esportiva, i es comprova aqui: amagar el boto al mobil no
+ * serveix de res si la peticio es pot enviar igualment.
+ */
+function saveSenior_(p, rol) {
+  if (rol !== 'director') {
+    return json_({ ok: false, error: 'Aquesta llista es nomes de la direccio esportiva.' });
+  }
+  if (!text_(p.id)) return json_({ ok: false, error: 'Falta l\'id.' });
+  if (!text_(p.nom)) return json_({ ok: false, error: 'Falta el nom.' });
+
+  var r = desa_('senior', {
+    id: text_(p.id),
+    nom: text_(p.nom),
+    equip: text_(p.equip),
+    any_naixement: num_(p.any_naixement),
+    posicio: text_(p.posicio),
+    punts_forts: (p.punts_forts || []).join(', '),
+    a_millorar: (p.a_millorar || []).join(', '),
+    nivell: text_(p.nivell),
+    interes: text_(p.interes),
+    notes: text_(p.notes),
+    actualitzada: ara_()
+  });
+  return json_({ ok: true, data: { id: r.id } });
+}
+
 /** Executa una operacio de la cua i retorna un objecte pla (no HTTP). */
-function executa_(action, payload) {
+function executa_(action, payload, rol) {
   var resposta;
   switch (action) {
     case 'saveJugadora':  resposta = saveJugadora_(payload || {}); break;
     case 'saveObservacio': resposta = saveObservacio_(payload || {}); break;
     case 'saveCaptacio':  resposta = saveCaptacio_(payload || {}); break;
+    case 'saveSenior':    resposta = saveSenior_(payload || {}, rol); break;
     default: return { ok: false, error: 'Accio desconeguda: ' + action };
   }
   return JSON.parse(resposta.getContent());
@@ -421,11 +506,11 @@ function executa_(action, payload) {
  * Buida la cua del mobil. Una operacio que falla no atura les altres: cada
  * una torna el seu resultat amb el seu opId i el mobil ja decideix.
  */
-function sync_(operacions) {
+function sync_(operacions, rol) {
   var resultats = (operacions || []).map(function (op) {
     var r;
     try {
-      r = executa_(text_(op.action), op.payload);
+      r = executa_(text_(op.action), op.payload, rol);
     } catch (err) {
       r = { ok: false, error: String(err && err.message ? err.message : err) };
     }
@@ -460,14 +545,16 @@ function doPost(e) {
 
     var pin = validaPin_(body.pin);
     if (!pin.ok) return json_(pin);
+    var rol = pin.rol;
 
     switch (action) {
-      case 'bootstrap':      return bootstrap_();
+      case 'bootstrap':      return bootstrap_(rol);
       case 'getJugadora':    return getJugadora_(body.id);
       case 'saveJugadora':   return saveJugadora_(body.payload || {});
       case 'saveObservacio': return saveObservacio_(body.payload || {});
       case 'saveCaptacio':   return saveCaptacio_(body.payload || {});
-      case 'sync':           return sync_(body.operacions);
+      case 'saveSenior':     return saveSenior_(body.payload || {}, rol);
+      case 'sync':           return sync_(body.operacions, rol);
       default:               return json_({ ok: false, error: 'Accio desconeguda: ' + action });
     }
   } catch (err) {

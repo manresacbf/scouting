@@ -67,7 +67,7 @@ const CLAUS = {
    ───────────────────────────────────────────────────────────────────── */
 
 let sessio = { pin: '', responsable: '' };
-let D = { config: {}, jugadores: [], captacio: {}, observacions: {}, ts: '' };
+let D = { config: {}, jugadores: [], captacio: {}, observacions: {}, senior: [], rol: '', ts: '' };
 let pendents = [];
 let sincronitzant = false;
 let filtres = { text: '', any: '', posicio: '', prioritat: '', estat: '' };
@@ -222,6 +222,9 @@ function aplicaLocal(action, p) {
     if (i === -1) llista.push(p); else llista[i] = p;
   } else if (action === 'saveCaptacio') {
     D.captacio[p.id_jugadora] = p;
+  } else if (action === 'saveSenior') {
+    const i = (D.senior || []).findIndex((j) => j.id === p.id);
+    if (i === -1) D.senior.push(p); else D.senior[i] = p;
   }
   guardaDades();
 }
@@ -299,6 +302,7 @@ function refrescaLocal(data) {
   pendents.forEach((o) => {
     if (o.action === 'saveJugadora') idsPendents['j:' + o.payload.id] = true;
     if (o.action === 'saveCaptacio') idsPendents['c:' + o.payload.id_jugadora] = true;
+    if (o.action === 'saveSenior') idsPendents['s:' + o.payload.id] = true;
   });
 
   const serverJ = data.jugadores || [];
@@ -316,6 +320,15 @@ function refrescaLocal(data) {
   D.captacio = cap;
 
   if (data.config) D.config = data.config;
+  if (data.rol !== undefined) D.rol = data.rol;
+
+  // Igual que amb les fitxes: una jugadora sènior entrada al pavelló i encara
+  // no pujada no es pot perdre quan arriba la llista del full.
+  const idsSenior = {};
+  (data.senior || []).forEach((j) => { idsSenior[j.id] = true; });
+  const seniorLocals = (D.senior || []).filter((j) => !idsSenior[j.id] && idsPendents['s:' + j.id]);
+  D.senior = (data.senior || []).concat(seniorLocals);
+
   D.ts = data.ts || new Date().toISOString();
   guardaDades();
 }
@@ -445,6 +458,16 @@ function ruta() {
     enrere.classList.remove('amagat');
     fab.classList.add('amagat');
     pintaFormJugadora();
+  } else if (r.vista === 'senior' && esDirector()) {
+    enrere.classList.remove('amagat');
+    fab.classList.remove('amagat');
+    fab.textContent = '+ Nova sènior';
+    fab.onclick = () => ves('#/senior-fitxa');
+    pintaLlistaSenior();
+  } else if (r.vista === 'senior-fitxa' && esDirector()) {
+    enrere.classList.remove('amagat');
+    fab.classList.add('amagat');
+    pintaFormSenior(r.id);
   } else {
     enrere.classList.add('amagat');
     fab.classList.remove('amagat');
@@ -453,6 +476,7 @@ function ruta() {
     $('#titol').textContent = 'Jugadores';
     pintaLlista();
   }
+  pintaBarraBaix(r.vista);
   window.scrollTo(0, 0);
 }
 
@@ -502,6 +526,7 @@ function pintaLlista() {
         'Sessió: <b>' + esc(sessio.responsable) + '</b> · ' +
         '<button type="button" class="chip" id="canvia-resp" style="min-height:32px">Canviar</button>' +
       '</div>';
+
 
     const cerca = $('#cerca');
     cerca.addEventListener('input', () => { filtres.text = cerca.value; pintaCosLlista(); });
@@ -871,6 +896,177 @@ function anysNaixement() {
   return anys;
 }
 
+/* ─────────────────────────────────────────────────────────────────────
+   13. JUGADORES SÈNIOR
+   ───────────────────────────────────────────────────────────────────── *
+   Només les veu qui entra amb el codi de direcció esportiva, i el full ho
+   torna a comprovar: aquí només hi ha la comoditat de no ensenyar botons
+   que no toquen.
+
+   A diferència de les observacions de les joves, aquí hi ha UNA fitxa per
+   jugadora i tornar-la a desar reescriu l'anterior: per a sènior interessa
+   la decisió d'ara, no l'evolució.                                       */
+
+const SENIOR_PUNTS_DEF = ['Tir exterior', 'Penetració', 'Rebot', 'Defensa interior',
+  'Defensa exterior', 'Bot i maneig', "Joc d'esquena", 'Lectura de joc', 'Físic',
+  'Intensitat', 'Lideratge'];
+const SENIOR_NIVELL_DEF = ['Completaria plantilla', 'Competiria pel lloc', 'Titular'];
+const SENIOR_INTERES_DEF = ['Seguir-la mirant', 'Parlar-hi aquesta temporada', 'Prioritat'];
+
+function esDirector() { return D.rol === 'director'; }
+
+/** Les pantalles de sènior són una branca a part; la resta, Seguiment. */
+function pintaBarraBaix(vista) {
+  const barra = $('#barra-baix');
+  if (!barra) return;
+  const cal = esDirector();
+  barra.classList.toggle('amagat', !cal);
+  document.body.classList.toggle('amb-barra', cal);
+  if (!cal) return;
+
+  const aSenior = vista === 'senior' || vista === 'senior-fitxa';
+  $$('#barra-baix button').forEach((b) =>
+    b.setAttribute('aria-pressed', (b.getAttribute('data-tab') === '#/senior') === aSenior));
+}
+
+/** Només majors de 18: de l'any que en fa 18 cap enrere. */
+function anysSenior() {
+  const ara = new Date().getFullYear();
+  const anys = [];
+  for (let a = ara - 18; a >= ara - 40; a--) anys.push(String(a));
+  return anys;
+}
+
+function seniorPerId(id) {
+  return (D.senior || []).filter((j) => j.id === id)[0] || null;
+}
+
+function pintaLlistaSenior() {
+  $('#titol').textContent = 'Sènior';
+  // Primer les que corren més: prioritat a dalt.
+  const ordre = config('senior_interes', SENIOR_INTERES_DEF);
+  const llista = (D.senior || []).slice().sort((a, b) =>
+    (ordre.indexOf(b.interes) - ordre.indexOf(a.interes)) || a.nom.localeCompare(b.nom));
+
+  $('#contingut').innerHTML =
+    '<p class="meta" style="margin:0 0 14px">' +
+      "La teva llista per a l'any vinent. Només la veus tu, i tornar a desar una " +
+      'jugadora reescriu la seva fitxa.' +
+    '</p>' +
+    (llista.length
+      ? llista.map((j) =>
+          '<button type="button" class="fila-jug" data-senior="' + esc(j.id) + '">' +
+            '<span class="cos">' +
+              '<span class="nom">' + esc(j.nom) + '</span>' +
+              '<span class="sub">' +
+                esc([j.equip, j.posicio, j.any_naixement].filter((x) => x).join(' · ')) +
+                (j.interes ? ' · ' + esc(j.interes) : '') +
+              '</span>' +
+            '</span><span class="fletxa">›</span>' +
+          '</button>').join('')
+      : '<p class="buit">Encara no hi ha cap jugadora. Afegeix-ne una amb «+ Nova sènior».</p>');
+
+  $$('#contingut [data-senior]').forEach((b) =>
+    b.addEventListener('click', () => ves('#/senior-fitxa/' + b.getAttribute('data-senior'))));
+}
+
+function pintaFormSenior(id) {
+  const j = id ? seniorPerId(id) : null;
+  if (id && !j) { ves('#/senior'); return; }
+  $('#titol').textContent = j ? j.nom : 'Nova sènior';
+
+  const opcions = (llista, buit, triat) => '<option value="">' + buit + '</option>' +
+    llista.map((v) => '<option value="' + esc(v) + '"' +
+      (String(triat) === String(v) ? ' selected' : '') + '>' + esc(v) + '</option>').join('');
+  const xips = (idBloc, llista, triats, unica) =>
+    '<div class="multi" id="' + idBloc + '"' + (unica ? ' data-unica="1"' : '') + '>' +
+      llista.map((v) => '<button type="button" class="chip" data-valor="' + esc(v) + '"' +
+        ' aria-pressed="' + (triats.indexOf(v) !== -1) + '">' + esc(v) + '</button>').join('') +
+    '</div>';
+
+  const punts = config('senior_punts', SENIOR_PUNTS_DEF);
+  const nivells = config('senior_nivell', SENIOR_NIVELL_DEF);
+  const interessos = config('senior_interes', SENIOR_INTERES_DEF);
+
+  $('#contingut').innerHTML =
+    '<form id="form-senior" autocomplete="off">' +
+      '<div class="card">' +
+        '<div class="eyebrow">Qui és</div>' +
+        '<div class="camp"><label for="s-nom">Nom i cognoms *</label>' +
+          '<input id="s-nom" required value="' + esc(j ? j.nom : '') + '"></div>' +
+        '<div class="camp"><label for="s-equip">Equip actual</label>' +
+          '<input id="s-equip" placeholder="CB Igualada A" value="' + esc(j ? j.equip : '') + '"></div>' +
+        '<div class="parell">' +
+          '<div class="camp"><label for="s-any">Any de naixement</label>' +
+            '<select id="s-any">' + opcions(anysSenior(), 'Sense definir', j ? j.any_naixement : '') + '</select></div>' +
+          '<div class="camp"><label for="s-posicio">Posició</label>' +
+            '<select id="s-posicio">' + opcions(config('posicions', POSICIONS_DEF), 'Sense definir', j ? j.posicio : '') + '</select></div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="eyebrow">Com juga</div>' +
+        '<div class="camp"><label>Punts forts</label>' +
+          xips('s-forts', punts, (j && j.punts_forts) || []) + '</div>' +
+        '<div class="camp" style="margin-bottom:0"><label>A millorar</label>' +
+          xips('s-millorar', punts, (j && j.a_millorar) || []) + '</div>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="eyebrow">Què en fem</div>' +
+        '<div class="camp"><label>Nivell que li veus</label>' +
+          xips('s-nivell', nivells, j && j.nivell ? [j.nivell] : [], true) + '</div>' +
+        '<div class="camp"><label>Interès</label>' +
+          xips('s-interes', interessos, j && j.interes ? [j.interes] : [], true) + '</div>' +
+        '<div class="camp" style="margin-bottom:0"><label for="s-notes">Notes</label>' +
+          '<textarea id="s-notes" placeholder="Acaba contracte, estudia fora, ja hi han parlat…">' +
+            esc(j ? j.notes : '') + '</textarea></div>' +
+      '</div>' +
+
+      '<button type="submit" class="btn" id="s-desa">' + (j ? 'Desar els canvis' : 'Desar') + '</button>' +
+      (j && j.actualitzada
+        ? '<p class="meta" style="text-align:center;margin-top:10px">Últim canvi: ' +
+          esc(formatData(j.actualitzada)) + '</p>'
+        : '') +
+    '</form>';
+
+  // Punts forts i a millorar deixen marcar-ne tantes com vulgui; nivell i
+  // interès, només una.
+  $$('#contingut .multi .chip').forEach((b) => b.addEventListener('click', () => {
+    const bloc = b.parentNode;
+    const ja = b.getAttribute('aria-pressed') === 'true';
+    if (bloc.getAttribute('data-unica')) {
+      Array.prototype.forEach.call(bloc.children, (x) => x.setAttribute('aria-pressed', 'false'));
+    }
+    b.setAttribute('aria-pressed', ja ? 'false' : 'true');
+  }));
+
+  const marcats = (sel) => $$(sel + ' .chip[aria-pressed="true"]').map((b) => b.getAttribute('data-valor'));
+
+  $('#form-senior').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const nom = $('#s-nom').value.trim();
+    if (!nom) { avisa('Falta el nom', true); return; }
+
+    encua('saveSenior', {
+      id: j ? j.id : uuid(),
+      nom: nom,
+      equip: $('#s-equip').value.trim(),
+      any_naixement: $('#s-any').value,
+      posicio: $('#s-posicio').value,
+      punts_forts: marcats('#s-forts'),
+      a_millorar: marcats('#s-millorar'),
+      nivell: marcats('#s-nivell')[0] || '',
+      interes: marcats('#s-interes')[0] || '',
+      notes: $('#s-notes').value.trim(),
+      actualitzada: new Date().toISOString()
+    });
+    avisa(j ? 'Fitxa actualitzada' : 'Jugadora afegida');
+    ves('#/senior');
+  });
+}
+
+
 function pintaFormJugadora() {
   $('#titol').textContent = 'Nova jugadora';
   const opcions = (llista, buit) => '<option value="">' + buit + '</option>' +
@@ -1083,7 +1279,7 @@ function pintaFormObservacio(idJugadora) {
 
 function arrenca() {
   sessio = Object.assign({ pin: '', responsable: '' }, llegeix(CLAUS.sessio, {}));
-  D = Object.assign({ config: {}, jugadores: [], captacio: {}, observacions: {}, ts: '' }, llegeix(CLAUS.dades, {}));
+  D = Object.assign({ config: {}, jugadores: [], captacio: {}, observacions: {}, senior: [], rol: '', ts: '' }, llegeix(CLAUS.dades, {}));
   pendents = llegeix(CLAUS.pendents, []) || [];
 
   $('#form-pin').addEventListener('submit', entraAmbPin);
@@ -1091,6 +1287,8 @@ function arrenca() {
     if (history.length > 1) history.back(); else ves('#/llista');
   });
   $('#estat-sync').addEventListener('click', () => sincronitza(true));
+  $$('#barra-baix button').forEach((b) =>
+    b.addEventListener('click', () => ves(b.getAttribute('data-tab'))));
   window.addEventListener('hashchange', ruta);
   window.addEventListener('online', () => sincronitza());
   document.addEventListener('visibilitychange', () => { if (!document.hidden) sincronitza(); });

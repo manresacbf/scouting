@@ -28,10 +28,10 @@ desplegament d'Apps Script propi i PIN propi. No comparteix res amb elles.
 
 1. Crea un Google Sheet nou anomenat **Scouting MCBF**.
 2. **Extensions → Apps Script**, enganxa-hi `Codi_AppsScript.gs` sencer i desa.
-3. Tria la funció **`setup`** i executa-la (▶). Crea les 4 pestanyes amb les
+3. Tria la funció **`setup`** i executa-la (▶). Crea les 5 pestanyes amb les
    capçaleres exactes i la configuració inicial.
-4. A la pestanya **Config**, canvia el `pin` (ve amb `1234`) i posa els
-   `responsables`.
+4. A la pestanya **Config**, canvia el `pin` (ve amb `1234`), posa els
+   `responsables` i, si vols la llista de sènior, omple `pin_director`.
 5. **Desplega → Nou desplegament → Aplicació web**, executant *com a tu* i amb
    accés per a *qualsevol persona*. Copia la URL `/exec`.
 6. Enganxa la URL a `CONFIG.API_URL`, dins `index.html`.
@@ -72,6 +72,43 @@ tocar `index.html`.
 
 Responsables, PIN, categories i posicions es canvien a la pestanya **Config**
 del full, sense tocar codi. L'app les rellegeix cada cop que arrenca.
+
+## Els dos codis
+
+| Clau a `Config` | Qui l'ha de tenir | Què obre |
+|---|---|---|
+| `pin` | Tothom de la Direcció Esportiva | Jugadores, observacions i captació |
+| `pin_director` | Només el director tècnic | El mateix **més** les jugadores sènior |
+
+Mentre `pin_director` estigui buit no l'obre ningú, i qui entri amb el `pin` de
+sempre no nota cap diferència.
+
+## Les jugadores sènior
+
+La llista del director tècnic per a la temporada següent: majors de 18 anys que
+ha vist jugar en altres equips.
+
+**Una fitxa per jugadora**, no un historial. Tornar-la a desar reescriu
+l'anterior: aquí interessa la decisió d'ara, no l'evolució. És al revés que les
+observacions de les joves, on cada visita és una fila nova a posta.
+
+Els camps són nom, equip, any de naixement, posició, punts forts, què ha de
+millorar, quin nivell li veu, quin interès hi té i unes notes. Les tres llistes
+de pastilles surten de `Config` (`senior_punts`, `senior_nivell`,
+`senior_interes`), com les categories i les posicions.
+
+**El filtratge es fa al servidor.** Amagar el botó al mòbil no serviria de res:
+`bootstrap` no envia la llista a qui no entra amb `pin_director`, i `saveSenior`
+rebutja l'escriptura. Els punts forts es desen com a text separat per comes i no
+com a JSON, perquè la pestanya es pugui llegir amb ulls humans.
+
+Dues coses que no hi són, i és a posta: **no es desa qui ha entrat cada fitxa**
+(només hi escriu el director) i **no es poden esborrar des de l'app**. Per treure
+una jugadora, esborra la fila a la pestanya `Senior`.
+
+**Qui tingui accés al Google Sheet pot obrir la pestanya `Senior`**, encara que
+no tingui el `pin_director`. Si algun dia ha de ser privat també dels companys
+de cos tècnic, caldrà moure-la a un full a part.
 
 ## Com funciona sense cobertura
 
