@@ -81,7 +81,7 @@ var CONFIG_INICIAL = [
   ['categories', 'Mini, Preinfantil, Infantil, Cadet, Júnior, Sènior'],
   ['posicions', 'Base, Escorta, Aler, Ala-pivot, Pivot'],
   ['senior_punts', 'Tir exterior, Penetració, Rebot, Defensa interior, ' +
-    'Defensa exterior, Bot i maneig, Joc d\'esquena, Lectura de joc, Físic, ' +
+    'Defensa exterior, Bot, Joc d\'esquena, Lectura de joc, Físic, ' +
     'Intensitat, Lideratge'],
   ['senior_nivell', 'Completaria plantilla, Competiria pel lloc, Titular'],
   ['senior_interes', 'Seguir-la mirant, Parlar-hi aquesta temporada, Prioritat']

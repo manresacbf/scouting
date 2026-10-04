@@ -917,7 +917,7 @@ function anysNaixement() {
    la decisió d'ara, no l'evolució.                                       */
 
 const SENIOR_PUNTS_DEF = ['Tir exterior', 'Penetració', 'Rebot', 'Defensa interior',
-  'Defensa exterior', 'Bot i maneig', "Joc d'esquena", 'Lectura de joc', 'Físic',
+  'Defensa exterior', 'Bot', "Joc d'esquena", 'Lectura de joc', 'Físic',
   'Intensitat', 'Lideratge'];
 const SENIOR_NIVELL_DEF = ['Completaria plantilla', 'Competiria pel lloc', 'Titular'];
 const SENIOR_INTERES_DEF = ['Seguir-la mirant', 'Parlar-hi aquesta temporada', 'Prioritat'];
