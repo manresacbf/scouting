@@ -335,7 +335,10 @@ function refrescaLocal(data) {
 
 async function refrescaBootstrap(silenci) {
   try {
-    const res = await api('bootstrap', {}, 1);
+    // Tres intents, no un: Apps Script falla de tant en tant i, en obrir
+    // l'app, aquesta es l'unica crida que porta la Config nova. Amb un sol
+    // intent es podien quedar dies amb les llistes velles sense saber-ho.
+    const res = await api('bootstrap', {}, 3);
     if (!res || !res.ok) throw new Error((res && res.error) || 'Error');
     refrescaLocal(res.data);
     const r = rutaActual();
@@ -1008,7 +1011,7 @@ function pintaFormSenior(id) {
         '<div class="camp"><label for="s-nom">Nom i cognoms *</label>' +
           '<input id="s-nom" required value="' + esc(j ? j.nom : '') + '"></div>' +
         '<div class="camp"><label for="s-equip">Equip actual</label>' +
-          '<input id="s-equip" placeholder="CB Igualada A" value="' + esc(j ? j.equip : '') + '"></div>' +
+          '<input id="s-equip" value="' + esc(j ? j.equip : '') + '"></div>' +
         '<div class="parell">' +
           '<div class="camp"><label for="s-any">Any de naixement</label>' +
             '<select id="s-any">' + opcions(anysSenior(), 'Sense definir', j ? j.any_naixement : '') + '</select></div>' +
